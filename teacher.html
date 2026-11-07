@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>لوحة المعلم — وحدة الأمن السيبراني</title>
+  <!-- مكتبة قراءة/كتابة Excel -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-logo">م</div>
+      <div>
+        <h1>لوحة المعلم — م. منذر الزعبي</h1>
+        <small>مدرسة الطرة الثانوية للبنين — وحدة الأمن السيبراني</small>
+      </div>
+    </div>
+    <div class="user-chip">
+      <button class="btn-logout" onclick="logout()">خروج</button>
+    </div>
+  </header>
+
+  <div class="container">
+
+    <!-- ===== إعدادات الموعد النهائي ===== -->
+    <div class="card gold">
+      <h2>إعدادات الموعد النهائي</h2>
+      <p class="subtitle">يمكنك تمديد فترة التسليم من 12/11 إلى 15/11/2026</p>
+      <div class="info-grid" style="margin-bottom:16px">
+        <div class="info-box">
+          <div class="label">الموعد الأصلي</div>
+          <div class="value">2026-11-12</div>
+        </div>
+        <div class="info-box">
+          <div class="label">التمديد (إن فُعِّل)</div>
+          <div class="value">2026-11-15</div>
+        </div>
+        <div class="info-box">
+          <div class="label">حالة التمديد</div>
+          <div class="value" id="extStatus">—</div>
+        </div>
+      </div>
+      <button class="btn btn-gold" id="toggleExtBtn">تفعيل التمديد</button>
+    </div>
+
+    <!-- ===== استيراد الطلاب من Excel ===== -->
+    <div class="card">
+      <h2>استيراد الطلاب من ملف Excel</h2>
+      <p class="subtitle">
+        الملف يجب أن يحتوي على الأعمدة: <strong>الرقم</strong> ،
+        <strong>الاسم بالعربي</strong> ، <strong>الاسم بالإنجليزي</strong>
+        (الترتيب غير مهم)
+      </p>
+
+      <div class="alert alert-info">
+        💡 سيتم توليد <strong>اسم مستخدم وكلمة مرور</strong> تلقائياً لكل طالب.
+        يمكنك تصديرها بعد الاستيراد وتسليمها للطلاب.
+      </div>
+
+      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px">
+        <button class="btn btn-primary" id="importExcelBtn">📥 اختيار ملف Excel</button>
+        <button class="btn btn-outline" id="downloadTemplateBtn">📄 تنزيل نموذج فارغ</button>
+        <button class="btn btn-gold" id="exportCredentialsBtn">🔑 تصدير بيانات الدخول</button>
+        <button class="btn btn-danger" id="clearStudentsBtn">🗑️ حذف جميع الطلاب</button>
+        <input type="file" id="excelInput" accept=".xlsx,.xls" hidden>
+      </div>
+
+      <div id="importPreview"></div>
+    </div>
+
+    <!-- ===== إحصائيات ===== -->
+    <div class="info-grid" id="stats" style="margin-bottom:22px"></div>
+
+    <!-- ===== جدول الطلاب ===== -->
+    <div class="card">
+      <h2>الطلاب والتسليمات</h2>
+      <p class="subtitle">انقر على "إدارة" لأي طالب لإضافة ملاحظات، تقييم، أو تعديل بياناته</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>اسم الطالب</th>
+              <th>الرقم</th>
+              <th>اسم المستخدم</th>
+              <th>الحالة</th>
+              <th>التقييم</th>
+              <th>إجراء</th>
+            </tr>
+          </thead>
+          <tbody id="studentsTable"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ===== لوحة إدارة الطالب ===== -->
+    <div class="card" id="manageCard" style="display:none">
+      <h2 id="manageTitle">إدارة الطالب</h2>
+      <p class="subtitle" id="manageSub"></p>
+
+      <div class="info-grid" style="margin-bottom:18px" id="manageInfo"></div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px" id="manageGrid">
+        <!-- الملاحظات -->
+        <div>
+          <h3 style="font-size:16px;margin-bottom:10px">الملاحظات</h3>
+          <div id="teacherNotes"></div>
+          <div class="form-group" style="margin-top:10px">
+            <textarea id="noteText" rows="3" placeholder="اكتب ملاحظة للطالب..."></textarea>
+          </div>
+          <button class="btn btn-primary btn-block" id="saveNoteBtn">إضافة ملاحظة</button>
+        </div>
+
+        <!-- التقييم وبيانات الدخول -->
+        <div>
+          <h3 style="font-size:16px;margin-bottom:10px">التقييم</h3>
+          <div class="form-group">
+            <select id="evalSelect">
+              <option value="">— اختر التقييم —</option>
+              <option value="N/S">N/S</option>
+              <option value="U">U</option>
+              <option value="P">P</option>
+              <option value="M">M</option>
+              <option value="D">D</option>
+            </select>
+          </div>
+          <button class="btn btn-gold btn-block" id="saveEvalBtn">حفظ التقييم</button>
+
+          <h3 style="font-size:16px;margin:20px 0 10px">بيانات الدخول</h3>
+          <div class="form-group">
+            <label>اسم المستخدم</label>
+            <input type="text" id="editUsername">
+          </div>
+          <div class="form-group">
+            <label>كلمة المرور</label>
+            <input type="text" id="editPassword">
+          </div>
+          <button class="btn btn-outline btn-block" id="saveCredentialsBtn">تحديث بيانات الدخول</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <footer>
+    مدرسة الطرة الثانوية للبنين — م. منذر الزعبي — وحدة الأمن السيبراني
+  </footer>
+
+  <!-- ===== الأكواد ===== -->
+  <script src="data.js"></script>
+  <script>
+    /* =========================================================
+       0) حماية الصفحة
+       ========================================================= */
+    const session = DB.session();
+    if (!session || session.role !== 'teacher') {
+      window.location.href = 'login.html';
+    }
+
+    function logout() { DB.logout(); window.location.href = 'login.html'; }
+
+    let currentStudentId = null;
+
+    /* =========================================================
+       1) إعدادات التمديد
+       ========================================================= */
+    function renderExtension() {
+      const s = DB.settings();
+      const statusEl = document.getElementById('extStatus');
+      statusEl.textContent = s.isExtended ? 'مُفعَّل' : 'غير مُفعَّل';
+      statusEl.style.color = s.isExtended ? 'var(--green)' : 'var(--gray)';
+      const btn = document.getElementById('toggleExtBtn');
+      btn.textContent = s.isExtended ? 'إلغاء التمديد (العودة إلى 12/11)' : 'تفعيل التمديد إلى 15/11';
+      btn.className = s.isExtended ? 'btn btn-danger' : 'btn btn-gold';
+    }
+
+    document.getElementById('toggleExtBtn').addEventListener('click', () => {
+      const s = DB.settings();
+      s.isExtended = !s.isExtended;
+      DB.saveSettings(s);
+      renderExtension();
+      renderStats();
+      renderTable();
+    });
+
+    /* =========================================================
+       2) الإحصائيات
+       ========================================================= */
+    function renderStats() {
+      const students = DB.students();
+      let onTime = 0, late = 0, missing = 0, graded = 0;
+      students.forEach(st => {
+        const status = DB.statusOf(st.id);
+        if (status.label === 'سلّم في الوقت') onTime++;
+        else if (status.label === 'سلّم بعد الموعد') late++;
+        else missing++;
+        if (DB.evalOf(st.id)) graded++;
+      });
+      document.getElementById('stats').innerHTML = `
+        <div class="info-box"><div class="label">إجمالي الطلاب</div><div class="value">${students.length}</div></div>
+        <div class="info-box"><div class="label">سلّموا في الوقت</div><div class="value" style="color:var(--green)">${onTime}</div></div>
+        <div class="info-box"><div class="label">سلّموا متأخرين</div><div class="value" style="color:var(--amber)">${late}</div></div>
+        <div class="info-box"><div class="label">لم يسلّموا</div><div class="value" style="color:var(--red)">${missing}</div></div>
+        <div class="info-box"><div class="label">تم تقييمهم</div><div class="value">${graded}</div></div>
+      `;
+    }
+
+    /* =========================================================
+       3) جدول الطلاب
+       ========================================================= */
+    function renderTable() {
+      const students = DB.students();
+      const tbody = document.getElementById('studentsTable');
+      if (!students.length) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--gray);padding:24px">
+          لا يوجد طلاب. استخدم زر "اختيار ملف Excel" أعلاه لاستيرادهم.
+        </td></tr>`;
+        return;
+      }
+      tbody.innerHTML = students.map((st, i) => {
+        const status = DB.statusOf(st.id);
+        const ev = DB.evalOf(st.id);
+        return `
+          <tr>
+            <td>${i+1}</td>
+            <td><strong>${st.nameAr}</strong><br><small style="color:var(--gray)">${st.nameEn}</small></td>
+            <td>${st.num}</td>
+            <td><code style="font-size:12px">${st.username}</code></td>
+            <td><span class="badge ${status.cls}">${status.label}</span></td>
+            <td>${ev ? `<span class="badge badge-grade">${ev.code}</span>` : '<span class="badge badge-gray">—</span>'}</td>
+            <td><button class="btn btn-outline" style="padding:6px 14px;font-size:13px"
+                        onclick="openManage(${st.id})">إدارة</button></td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    /* =========================================================
+       4) إدارة طالب
+       ========================================================= */
+    window.openManage = function(id) {
+      currentStudentId = id;
+      const st = DB.findStudent(id);
+      if (!st) return;
+      const sub = DB.submissionOf(id);
+      const ev = DB.evalOf(id);
+
+      document.getElementById('manageCard').style.display = 'block';
+      document.getElementById('manageTitle').textContent = 'إدارة: ' + st.nameAr;
+      document.getElementById('manageSub').textContent = st.nameEn + ' — الرقم: ' + st.num;
+
+      // تم تحديث هذا الجزء لإضافة زر التحميل
+      document.getElementById('manageInfo').innerHTML = `
+        <div class="info-box"><div class="label">حالة التسليم</div>
+          <div class="value" style="font-size:14px">${DB.statusOf(id).label}</div></div>
+        <div class="info-box">
+          <div class="label">الملف المسلّم</div>
+          <div class="value" style="font-size:13px">
+            ${sub ? `<a href="#" onclick="downloadFile('${sub.fileName}'); return false;" style="color:var(--navy);text-decoration:underline;font-weight:bold;">⬇️ تحميل ${sub.fileName}</a>` : 'لا يوجد'}
+          </div>
+        </div>
+        <div class="info-box"><div class="label">وقت التسليم</div>
+          <div class="value" style="font-size:13px">${sub ? new Date(sub.submittedAt).toLocaleString('ar-JO') : '—'}</div></div>
+        <div class="info-box"><div class="label">التقييم</div>
+          <div class="value">${ev ? ev.code : '—'}</div></div>
+      `;
+
+      // الملاحظات
+      const notes = DB.notesOf(id);
+      document.getElementById('teacherNotes').innerHTML = notes.length
+        ? notes.map(n => `
+          <div class="note-bubble">
+            <div>${n.text.replace(/\n/g,'<br>')}</div>
+            <div class="meta" style="display:flex;justify-content:space-between">
+              <span>🕓 ${new Date(n.createdAt).toLocaleString('ar-JO')}</span>
+              <button class="btn-logout" style="color:var(--red);border-color:var(--red);padding:2px 10px;font-size:12px"
+                      onclick="removeNote(${n.id})">حذف</button>
+            </div>
+          </div>`).join('')
+        : '<p style="color:var(--gray);font-size:13px">لا توجد ملاحظات بعد.</p>';
+
+      document.getElementById('evalSelect').value = ev ? ev.code : '';
+      document.getElementById('editUsername').value = st.username;
+      document.getElementById('editPassword').value = st.password;
+
+      document.getElementById('manageCard').scrollIntoView({ behavior: 'smooth' });
+    };
+
+    // دالة تحميل الملف (محاكاة)
+    window.downloadFile = function(fileName) {
+      const content = `هذا ملف تجريبي.\nفي النظام الحقيقي، سيتم تحميل الملف الأصلي (${fileName}) هنا.`;
+      const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    };
+
+    window.removeNote = function(noteId) {
+      if (!confirm('حذف هذه الملاحظة؟')) return;
+      DB.deleteNote(noteId);
+      openManage(currentStudentId);
+    };
+
+    document.getElementById('saveNoteBtn').addEventListener('click', () => {
+      const text = document.getElementById('noteText').value.trim();
+      if (!text) return alert('اكتب الملاحظة أولاً');
+      if (!currentStudentId) return alert('اختر طالباً أولاً');
+      DB.addNote(currentStudentId, text);
+      document.getElementById('noteText').value = '';
+      openManage(currentStudentId);
+    });
+
+    document.getElementById('saveEvalBtn').addEventListener('click', () => {
+      const code = document.getElementById('evalSelect').value;
+      if (!code) return alert('اختر التقييم');
+      if (!currentStudentId) return alert('اختر طالباً أولاً');
+      DB.setEval(currentStudentId, code);
+      openManage(currentStudentId);
+      renderTable();
+      renderStats();
+    });
+
+    document.getElementById('saveCredentialsBtn').addEventListener('click', () => {
+      const u = document.getElementById('editUsername').value.trim();
+      const p = document.getElementById('editPassword').value.trim();
+      if (!u || !p) return alert('اسم المستخدم وكلمة المرور مطلوبان');
+      DB.updateStudent(currentStudentId, { username: u, password: p });
+      alert('تم تحديث بيانات الدخول ✅');
+      renderTable();
+    });
+
+    /* =========================================================
+       5) استيراد Excel + توليد بيانات الدخول
+       ========================================================= */
+    const excelInput = document.getElementById('excelInput');
+    const importPreview = document.getElementById('importPreview');
+
+    function generateUsername(nameEn, existing) {
+      let base = nameEn.toLowerCase().replace(/[^a-z\s]/g, '').trim().split(/\s+/);
+      let username = base[0];
+      if (base.length > 1) username += '.' + base[base.length - 1];
+      username = username.replace(/\s+/g, '');
+      let candidate = username, n = 1;
+      while (existing.includes(candidate)) { candidate = username + n; n++; }
+      return candidate;
+    }
+
+    function generatePassword() {
+      const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+      const lower = 'abcdefghijkmnpqrstuvwxyz';
+      const digits = '23456789';
+      const symbols = '@#$%&';
+      const all = upper + lower + digits + symbols;
+      let pwd = '';
+      pwd += upper[Math.floor(Math.random() * upper.length)];
+      pwd += lower[Math.floor(Math.random() * lower.length)];
+      pwd += digits[Math.floor(Math.random() * digits.length)];
+      pwd += symbols[Math.floor(Math.random() * symbols.length)];
+      for (let i = 0; i < 6; i++) pwd += all[Math.floor(Math.random() * all.length)];
+      return pwd.split('').sort(() => Math.random() - 0.5).join('');
+    }
+
+    document.getElementById('importExcelBtn').addEventListener('click', () => excelInput.click());
+
+    excelInput.addEventListener('change', e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = evt => {
+        try {
+          const data = new Uint8Array(evt.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const sheet = workbook.Sheets[workbook.SheetNames[0]];
+          const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+          if (!rows.length) { alert('الملف فارغ.'); return; }
+
+          const keys = Object.keys(rows[0]);
+          const findKey = (variants) => keys.find(k =>
+            variants.some(v => k.trim().toLowerCase() === v.toLowerCase() || k.trim() === v)
+          );
+          const numKey = findKey(['الرقم', 'رقم الطالب', 'Student Number', 'Number', 'ID']);
+          const arKey  = findKey(['الاسم بالعربي', 'الاسم العربي', 'الاسم', 'Name AR', 'Name Arabic', 'Arabic Name']);
+          const enKey  = findKey(['الاسم بالإنجليزي', 'الاسم الانجليزي', 'Name EN', 'Name English', 'English Name']);
+
+          if (!arKey || !enKey) {
+            alert('لم يتم العثور على أعمدة الأسماء.\nيجب أن يحتوي الملف على "الاسم بالعربي" و "الاسم بالإنجليزي".\n\nالأعمدة الموجودة: ' + keys.join(' | '));
+            return;
+          }
+
+          const existingUsernames = [];
+          let nextId = DB.nextStudentId();
+          const newStudents = rows
+            .filter(r => (r[arKey] || '').toString().trim() && (r[enKey] || '').toString().trim())
+            .map(r => {
+              const nameEn = r[enKey].toString().trim();
+              const username = generateUsername(nameEn, existingUsernames);
+              existingUsernames.push(username);
+              return {
+                id: nextId++,
+                num: numKey ? (r[numKey] || '').toString().trim() : String(nextId - 1),
+                nameAr: r[arKey].toString().trim(),
+                nameEn: nameEn,
+                username: username,
+                password: generatePassword()
+              };
+            });
+
+          if (!newStudents.length) { alert('لا صفوف صالحة.'); return; }
+          showPreview(newStudents);
+        } catch (err) {
+          console.error(err);
+          alert('تعذّر قراءة الملف. تأكد أنه xlsx أو xls صحيح.');
+        }
+      };
+      reader.readAsArrayBuffer(file);
+      excelInput.value = '';
+    });
+
+    function showPreview(students) {
+      importPreview.innerHTML = `
+        <h3 style="font-size:16px;margin-bottom:10px">معاينة: ${students.length} طالب جاهز للاستيراد</h3>
+        <div class="table-wrap" style="max-height:320px;overflow-y:auto">
+          <table>
+            <thead>
+              <tr><th>#</th><th>الاسم بالعربي</th><th>الاسم بالإنجليزي</th>
+              <th>الرقم</th><th>اسم المستخدم</th><th>كلمة المرور</th></tr>
+            </thead>
+            <tbody>
+              ${students.map((s,i) => `
+                <tr>
+                  <td>${i+1}</td><td>${s.nameAr}</td><td>${s.nameEn}</td>
+                  <td>${s.num}</td><td><code>${s.username}</code></td>
+                  <td><code>${s.password}</code></td>
+                </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+        <div style="display:flex;gap:12px;margin-top:16px;flex-wrap:wrap">
+          <button class="btn btn-gold" id="confirmImportBtn">✅ تأكيد الاستيراد (${students.length} طالب)</button>
+          <button class="btn btn-outline" id="cancelImportBtn">إلغاء</button>
+        </div>
+      `;
+      document.getElementById('confirmImportBtn').addEventListener('click', () => {
+        if (!confirm(`سيتم استبدال قائمة الطلاب الحالية بـ ${students.length} طالب. متابعة؟`)) return;
+        DB.saveStudents(students);
+        alert('تم استيراد الطلاب بنجاح ✅\nيمكنك الآن تصدير بيانات الدخول.');
+        importPreview.innerHTML = '';
+        renderStats();
+        renderTable();
+      });
+      document.getElementById('cancelImportBtn').addEventListener('click', () => {
+        importPreview.innerHTML = '';
+      });
+    }
+
+    document.getElementById('downloadTemplateBtn').addEventListener('click', () => {
+      const template = [
+        { 'الرقم': '2026001', 'الاسم بالعربي': 'أحمد محمد العلي', 'الاسم بالإنجليزي': 'Ahmad Mohammad Al-Ali' },
+        { 'الرقم': '2026002', 'الاسم بالعربي': 'يوسف سامي الزعبي', 'الاسم بالإنجليزي': 'Yousef Sami Al-Zoubi' }
+      ];
+      const ws = XLSX.utils.json_to_sheet(template);
+      ws['!cols'] = [{ wch: 12 }, { wch: 26 }, { wch: 28 }];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'الطلاب');
+      XLSX.writeFile(wb, 'نموذج_طلاب_الأمن_السيبراني.xlsx');
+    });
+
+    document.getElementById('exportCredentialsBtn').addEventListener('click', () => {
+      const students = DB.students();
+      if (!students.length) { alert('لا يوجد طلاب. استورد ملف Excel أولاً.'); return; }
+      const data = students.map(s => ({
+        'الرقم': s.num,
+        'الاسم بالعربي': s.nameAr,
+        'الاسم بالإنجليزي': s.nameEn,
+        'اسم المستخدم': s.username,
+        'كلمة المرور': s.password
+      }));
+      const ws = XLSX.utils.json_to_sheet(data);
+      ws['!cols'] = [{ wch: 12 }, { wch: 26 }, { wch: 28 }, { wch: 20 }, { wch: 16 }];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'بيانات الدخول');
+      XLSX.writeFile(wb, 'بيانات_دخول_الطلاب.xlsx');
+    });
+
+    document.getElementById('clearStudentsBtn').addEventListener('click', () => {
+      if (!confirm('سيتم حذف جميع الطلاب. متأكد؟')) return;
+      if (!confirm('تأكيد نهائي: لا يمكن التراجع!')) return;
+      DB.saveStudents([]);
+      alert('تم حذف جميع الطلاب.');
+      renderStats();
+      renderTable();
+      document.getElementById('manageCard').style.display = 'none';
+    });
+
+    /* =========================================================
+       6) التشغيل عند التحميل
+       ========================================================= */
+    renderExtension();
+    renderStats();
+    renderTable();
+  </script>
+</body>
+</html>

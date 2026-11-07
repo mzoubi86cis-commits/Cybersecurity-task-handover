@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>بوابة الطالب — وحدة الأمن السيبراني</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-logo">ط</div>
+      <div>
+        <h1>مدرسة الطرة الثانوية للبنين</h1>
+        <small>وحدة الأمن السيبراني — 2026/2027</small>
+      </div>
+    </div>
+    <div class="user-chip">
+      <span id="who"></span>
+      <button class="btn-logout" onclick="logout()">خروج</button>
+    </div>
+  </header>
+
+  <div class="container">
+
+    <!-- بيانات الواجب -->
+    <div class="card gold">
+      <h2>واجب وحدة الأمن السيبراني</h2>
+      <p class="subtitle">المعلم: م. منذر الزعبي — التخصص: تكنولوجيا المعلومات</p>
+      <div class="info-grid" id="assignmentInfo"></div>
+    </div>
+
+    <!-- رسالة التنبيه -->
+    <div id="statusMsg"></div>
+
+    <!-- منطقة رفع الواجب -->
+    <div class="card">
+      <h2>تسليم الواجب</h2>
+      <p class="subtitle">الملفات المسموحة: <strong>.docx</strong> أو <strong>.zip</strong> — الحجم الأقصى 20 ميجابايت</p>
+
+      <div id="uploadArea">
+        <div class="dropzone" id="dropzone">
+          <div class="icon">📤</div>
+          <p><strong>اسحب الملف هنا</strong> أو انقر للاختيار</p>
+          <p style="font-size:12px;margin-top:6px">docx / zip فقط</p>
+          <input type="file" id="fileInput" accept=".docx,.zip" hidden>
+        </div>
+        <div id="fileChosen" style="display:none" class="file-selected">
+          <span id="fileName"></span>
+          <button class="btn-logout" style="color:var(--red);border-color:var(--red)"
+                  onclick="clearFile()">إزالة</button>
+        </div>
+        <button class="btn btn-primary btn-block" id="submitBtn"
+                style="margin-top:16px" disabled>رفع الواجب</button>
+      </div>
+
+      <div id="submittedInfo" style="display:none;margin-top:16px"></div>
+    </div>
+
+    <!-- ملاحظات المعلم -->
+    <div class="card" id="notesCard" style="display:none">
+      <h2>ملاحظات المعلم</h2>
+      <p class="subtitle">ملاحظات للاطلاع فقط — لا يمكن تعديلها</p>
+      <div id="notesList"></div>
+    </div>
+
+    <!-- التقييم -->
+    <div class="card" id="gradeCard" style="display:none">
+      <h2>تقييم الواجب</h2>
+      <div id="gradeBody"></div>
+    </div>
+
+  </div>
+
+  <!-- نافذة الإقرار بالتقييم -->
+  <div class="modal-overlay" id="ackModal">
+    <div class="modal">
+      <h3>إقرار الاطلاع على التقييم</h3>
+      <p>يجب الموافقة على الإقرار التالي لعرض تقييمك.</p>
+      <div class="ack-box">
+        <input type="checkbox" id="ackCheck">
+        <label for="ackCheck">
+          أقر بأنني اطّلعت على تقييمي في <strong>واجب وحدة الأمن السيبراني</strong>
+          ولا يحق لي الاعتراض بعد الاطلاع.
+        </label>
+      </div>
+      <button class="btn btn-gold btn-block" id="ackBtn" disabled>تأكيد الاطلاع</button>
+    </div>
+  </div>
+
+  <footer>
+    مدرسة الطرة الثانوية للبنين — م. منذر الزعبي — وحدة الأمن السيبراني
+  </footer>
+
+  <script src="data.js"></script>
+  <script>
+    // ===== حماية الصفحة =====
+    const session = DB.session();
+    if (!session || session.role !== 'student') {
+      window.location.href = 'login.html';
+    }
+    const student = DB.findStudent(session.id);
+    if (!student) { logout(); }
+    document.getElementById('who').textContent = student.nameAr;
+
+    const settings = DB.settings();
+    let selectedFile = null;
+
+    function logout() { DB.logout(); window.location.href = 'login.html'; }
+
+    // ===== عرض معلومات الواجب =====
+    function renderAssignmentInfo() {
+      const s = DB.settings();
+      const deadline = DB.effectiveDeadline();
+      document.getElementById('assignmentInfo').innerHTML = `
+        <div class="info-box">
+          <div class="label">بدء التسليم</div>
+          <div class="value">${s.startDate}</div>
+        </div>
+        <div class="info-box">
+          <div class="label">آخر موعد للتسليم</div>
+          <div class="value" style="color:var(--red)">${deadline}</div>
+        </div>
+        <div class="info-box">
+          <div class="label">حالة التمديد</div>
+          <div class="value">${s.isExtended ? 'مُمدَّد إلى ' + s.extendedDeadline : 'غير مُمدَّد'}</div>
+        </div>
+        <div class="info-box">
+          <div class="label">كشف التقييم</div>
+          <div class="value">${s.gradeRevealDate}</div>
+        </div>
+      `;
+    }
+
+    // ===== عرض حالة التسليم =====
+        // ===== عرض حالة التسليم =====
+    function renderStatus() {
+      const msgBox = document.getElementById('statusMsg');
+      const sub = DB.submissionOf(student.id);
+      
+      const now = new Date();
+      const s = DB.settings();
+      const startDate = new Date(s.startDate + 'T00:00:00');
+      const deadlineDate = new Date(DB.effectiveDeadline() + 'T23:59:59');
+      
+      const isBeforeStart = now < startDate;
+      const isAfterDeadline = now > deadlineDate;
+
+      if (isBeforeStart) {
+        // الحالة 1: لم يبدأ التسليم بعد
+        msgBox.innerHTML = `<div class="alert alert-info">
+          ⏳ لم تبدأ فترة التسليم بعد. سيتم فتح باب التسليم بتاريخ ${s.startDate}.
+        </div>`;
+        document.getElementById('uploadArea').style.display = 'none';
+      } 
+      else if (isAfterDeadline) {
+        // الحالة 2: انتهى الموعد
+        msgBox.innerHTML = `<div class="alert alert-warn">
+          ⚠️ فترة التسليم مغلقة حالياً. آخر موعد كان ${DB.effectiveDeadline()}.
+          ${sub ? 'لقد سلّمت واجبك مسبقاً.' : 'لم تقم بالتسليم.'}
+        </div>`;
+        document.getElementById('uploadArea').style.display = 'none';
+      } 
+      else {
+        // الحالة 3: التسليم مفتوح
+        if (!sub) {
+          msgBox.innerHTML = `<div class="alert alert-info">
+            📌 التسليم مفتوح. يمكنك رفع ملفك الآن (docx أو zip).
+          </div>`;
+        } else {
+          msgBox.innerHTML = `<div class="alert alert-success">
+            ✅ لقد سلّمت واجبك. يمكنك إعادة التسليم قبل الموعد النهائي (${DB.effectiveDeadline()}).
+          </div>`;
+        }
+        document.getElementById('uploadArea').style.display = 'block';
+      }
+
+      // عرض معلومات الملف إن وجد
+      if (sub) {
+        const info = document.getElementById('submittedInfo');
+        info.style.display = 'block';
+        info.innerHTML = `<div class="info-grid">
+          <div class="info-box">
+            <div class="label">الملف المسلَّم</div>
+            <div class="value" style="font-size:13px">${sub.fileName}</div>
+          </div>
+          <div class="info-box">
+            <div class="label">وقت التسليم</div>
+            <div class="value" style="font-size:13px">${new Date(sub.submittedAt).toLocaleString('ar-JO')}</div>
+          </div>
+        </div>`;
+      }
+    }
+
+    // ===== رفع الملف =====
+    const dropzone = document.getElementById('dropzone');
+    const fileInput = document.getElementById('fileInput');
+
+    dropzone.addEventListener('click', () => fileInput.click());
+    dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('dragover'); });
+    dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+    dropzone.addEventListener('drop', e => {
+      e.preventDefault(); dropzone.classList.remove('dragover');
+      if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+    });
+    fileInput.addEventListener('change', e => {
+      if (e.target.files.length) handleFile(e.target.files[0]);
+    });
+
+    function handleFile(file) {
+      const ext = file.name.split('.').pop().toLowerCase();
+      if (!['docx','zip'].includes(ext)) {
+        alert('الملفات المسموحة فقط: docx أو zip');
+        return;
+      }
+      if (file.size > 20 * 1024 * 1024) {
+        alert('حجم الملف يتجاوز 20 ميجابايت');
+        return;
+      }
+      selectedFile = file;
+      document.getElementById('fileName').textContent = file.name;
+      document.getElementById('fileChosen').style.display = 'flex';
+      document.getElementById('submitBtn').disabled = false;
+    }
+
+    function clearFile() {
+      selectedFile = null;
+      fileInput.value = '';
+      document.getElementById('fileChosen').style.display = 'none';
+      document.getElementById('submitBtn').disabled = true;
+    }
+
+    document.getElementById('submitBtn').addEventListener('click', () => {
+      if (!selectedFile) return;
+      if (!DB.isSubmissionOpen()) {
+        alert('فترة التسليم مغلقة.');
+        return;
+      }
+      // في التطبيق الحقيقي: يُرفع الملف للخادم هنا
+      DB.addSubmission({
+        studentId: student.id,
+        fileName: selectedFile.name,
+        fileSize: selectedFile.size
+      });
+      clearFile();
+      alert('تم رفع الواجب بنجاح ✅');
+      renderStatus();
+      renderNotes();
+    });
+
+    // ===== ملاحظات المعلم =====
+    function renderNotes() {
+      const notes = DB.notesOf(student.id);
+      const card = document.getElementById('notesCard');
+      if (!notes.length) { card.style.display = 'none'; return; }
+      card.style.display = 'block';
+      document.getElementById('notesList').innerHTML = notes.map(n => `
+        <div class="note-bubble">
+          <div>${n.text.replace(/\n/g,'<br>')}</div>
+          <div class="meta">🕓 ${new Date(n.createdAt).toLocaleString('ar-JO')}</div>
+        </div>
+      `).join('');
+    }
+
+    // ===== التقييم =====
+    function renderGrade() {
+      const card = document.getElementById('gradeCard');
+      const body = document.getElementById('gradeBody');
+      const ev = DB.evalOf(student.id);
+
+      // التقييم يظهر فقط بعد 18/11/2026
+      if (!DB.isGradeVisible() || !ev) {
+        card.style.display = 'none';
+        return;
+      }
+      card.style.display = 'block';
+
+      // إذا لم يقرّ الطالب بعد → أظهر نافذة الإقرار
+      if (!DB.hasAck(student.id)) {
+        body.innerHTML = `<div class="alert alert-info">
+          🎓 تقييمك متاح الآن. يرجى الموافقة على الإقرار لعرضه.
+        </div>`;
+        document.getElementById('ackModal').classList.add('active');
+      } else {
+        body.innerHTML = `
+          <div class="grade-reveal">
+            <div class="big">${ev.code}</div>
+            <div class="code">تم الاطلاع بتاريخ ${new Date(DB.acks().find(a=>a.studentId===student.id).acknowledgedAt).toLocaleString('ar-JO')}</div>
+          </div>
+        `;
+      }
+    }
+
+    // ===== نافذة الإقرار =====
+    const ackCheck = document.getElementById('ackCheck');
+    const ackBtn = document.getElementById('ackBtn');
+    ackCheck.addEventListener('change', () => { ackBtn.disabled = !ackCheck.checked; });
+    ackBtn.addEventListener('click', () => {
+      DB.addAck(student.id);
+      document.getElementById('ackModal').classList.remove('active');
+      renderGrade();
+    });
+
+    // ===== التشغيل =====
+    renderAssignmentInfo();
+    renderStatus();
+    renderNotes();
+    renderGrade();
+  </script>
+</body>
+</html>

@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>تسجيل الدخول — وحدة الأمن السيبراني</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-logo">ط</div>
+      <div>
+        <h1>مدرسة الطرة الثانوية للبنين</h1>
+        <small>قسم تكنولوجيا المعلومات — العام الدراسي 2026/2027</small>
+      </div>
+    </div>
+  </header>
+
+  <div class="container-narrow">
+    <div class="card gold">
+      <h2 style="text-align:center">وحدة الأمن السيبراني</h2>
+      <p class="subtitle" style="text-align:center">
+        تسجيل الدخول لتسليم الواجب والاطلاع على الملاحظات والتقييم
+      </p>
+
+      <div id="msg"></div>
+
+      <form id="loginForm">
+        <div class="form-group">
+          <label for="username">اسم المستخدم</label>
+          <input type="text" id="username" placeholder="مثال: ahmad.ali" required autocomplete="username">
+        </div>
+        <div class="form-group">
+          <label for="password">كلمة المرور</label>
+          <input type="password" id="password" placeholder="••••••••" required autocomplete="current-password">
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">دخول</button>
+      </form>
+
+      <hr style="margin:22px 0;border:none;border-top:1px solid #e2e8f0">
+
+      <details>
+        <summary style="cursor:pointer;font-size:13px;color:var(--gray);font-weight:600">
+          دخول المعلم (أ. منذر الزعبي)
+        </summary>
+        <form id="teacherForm" style="margin-top:14px">
+          <div class="form-group">
+            <label for="tpass">كلمة مرور المعلم</label>
+            <input type="password" id="tpass" placeholder="كلمة مرور المعلم" required>
+          </div>
+          <button type="submit" class="btn btn-gold btn-block">دخول لوحة المعلم</button>
+        </form>
+      </details>
+    </div>
+
+    <p style="text-align:center;font-size:13px;color:var(--gray)">
+      بياناتك محمية ولا يمكن لأي طالب آخر الاطلاع عليها.
+    </p>
+  </div>
+
+  <footer>
+    مدرسة الطرة الثانوية للبنين — م. منذر الزعبي — وحدة الأمن السيبراني
+  </footer>
+
+  <script src="data.js"></script>
+  <script>
+    // ===== كلمة مرور المعلم (يمكن تغييرها) =====
+    const TEACHER_PASSWORD = 'Monzer@2026';
+
+    const msg = document.getElementById('msg');
+    function showMsg(text, type = 'error') {
+      msg.innerHTML = `<div class="alert alert-${type}">${text}</div>`;
+    }
+
+    // ===== دخول الطالب =====
+    document.getElementById('loginForm').addEventListener('submit', e => {
+      e.preventDefault();
+      const u = document.getElementById('username').value.trim();
+      const p = document.getElementById('password').value;
+      const student = DB.findByCredentials(u, p);
+      if (!student) {
+        showMsg('اسم المستخدم أو كلمة المرور غير صحيحة. راجع المعلم إذا نسيت بياناتك.', 'error');
+        return;
+      }
+      DB.setSession('student', student.id, student.nameAr);
+      window.location.href = 'student.html';
+    });
+
+    // ===== دخول المعلم =====
+    document.getElementById('teacherForm').addEventListener('submit', e => {
+      e.preventDefault();
+      const p = document.getElementById('tpass').value;
+      if (p !== TEACHER_PASSWORD) {
+        showMsg('كلمة مرور المعلم غير صحيحة.', 'error');
+        return;
+      }
+      DB.setSession('teacher', 0, 'م. منذر الزعبي');
+      window.location.href = 'teacher.html';
+    });
+  </script>
+</body>
+</html>
